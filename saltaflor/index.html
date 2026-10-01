@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#6ec0ef">
+<title>Saltaflor — Mario Physics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2b2140; --panel:#fff8ec; --text:#2b2140; --muted:#6b5c86;
+  --accent:#e8423f; --accent-d:#a32835; --gold:#ffd23f; --bg:#6ec0ef;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --panel:#2d2545; --text:#fff4e0; --muted:#c7b8ea; --ink:#140f22; }
+}
+:root[data-theme="dark"]{ --panel:#2d2545; --text:#fff4e0; --muted:#c7b8ea; --ink:#140f22; }
+html{ height:100%; scroll-padding-top:env(safe-area-inset-top,0px); }
+*,*::before,*::after{ box-sizing:inherit; }
+html,body{ margin:0; overflow:hidden; background:var(--bg); }
+body{
+  height:100%;
+  font-family:'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  color:var(--text);
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+  touch-action:none;
+}
+#c{ position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+#hud{
+  position:fixed; top:0; left:0; right:0;
+  display:flex; justify-content:space-between;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) calc(env(safe-area-inset-right,0px) + 14px) 0 calc(env(safe-area-inset-left,0px) + 14px);
+  pointer-events:none; color:#fff; text-shadow:2px 2px 0 #2b2140;
+  font-size:clamp(11px, 2.4vmin, 18px);
+}
+.hud-box{ display:flex; flex-direction:column; gap:6px; }
+.hud-r{ align-items:flex-end; }
+.lbl{ font-size:.55em; opacity:.9; }
+
+#mute{
+  position:fixed;
+  right:calc(env(safe-area-inset-right,0px) + 12px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+  width:40px; height:40px; font:inherit; font-size:16px; line-height:1;
+  color:#fff; background:rgba(43,33,64,.45); border:3px solid #2b2140; cursor:pointer;
+}
+#mute.off{ opacity:.5; text-decoration:line-through; }
+#mute:focus-visible, .big:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
+
+.screen{
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 12px);
+  background:rgba(43,33,64,.2);
+}
+.panel{
+  background:var(--panel); border:4px solid var(--ink); box-shadow:0 6px 0 var(--ink);
+  padding:clamp(14px,3.5vmin,28px) clamp(18px,5vmin,40px);
+  text-align:center; max-width:min(92vw,520px); max-height:100%; overflow:auto;
+}
+h1{
+  font-size:clamp(22px,7vmin,48px); margin:0 0 .5em; color:var(--accent);
+  text-shadow:3px 3px 0 var(--ink); letter-spacing:2px; font-weight:400;
+}
+h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text-shadow:3px 3px 0 var(--ink); font-weight:400; }
+.panel p{ font-size:clamp(9px,2.4vmin,14px); line-height:1.7; margin:0 0 1.2em; }
+.panel p.hint{ color:var(--muted); font-size:clamp(7px,1.8vmin,10px); margin:1.4em 0 0; }
+.rot{ display:none; }
+@media (orientation:portrait){ .rot{ display:block; } }
+.big{
+  font:inherit; font-size:clamp(14px,3.8vmin,22px);
+  background:var(--accent); color:#fff; border:4px solid var(--ink);
+  box-shadow:inset 0 -5px 0 var(--accent-d);
+  padding:.8em 1.6em; cursor:pointer;
+}
+.big:active{ transform:translateY(3px); box-shadow:inset 0 -2px 0 var(--accent-d); }
+.stats{
+  display:grid; grid-template-columns:1fr auto; gap:.8em 1.8em; text-align:left;
+  font-size:clamp(9px,2.6vmin,15px); margin:0 0 1.2em;
+}
+.stats b{ font-weight:400; color:var(--accent); text-align:right; }
+#newBest{ color:var(--accent); margin:0 0 1em; font-size:clamp(9px,2.4vmin,13px); animation:blink .6s steps(2) infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+@media (prefers-reduced-motion: reduce){ #newBest{ animation:none; } }
+.hidden{ display:none !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="hud-box"><span class="lbl">Puntos</span><span id="score">0</span></div>
+  <div class="hud-box hud-r"><span class="lbl">Récord</span><span id="best">0</span></div>
+</div>
+<button id="mute" aria-label="Activar o silenciar sonido">♪</button>
+
+<div id="title" class="screen">
+  <div class="panel">
+    <h1>Saltaflor</h1>
+    <p>Pulsa y mantén para saltar</p>
+    <p class="rot">Gira el móvil: se juega mejor en horizontal</p>
+    <button id="play" class="big">JUGAR</button>
+    <p class="hint">Suelta para saltar. Aterriza en el centro para encadenar PERFECTOS. Recoge pulgones. Esquiva enemigos. Y no te duermas: las flores se marchitan.</p>
+  </div>
+</div>
+
+<div id="over" class="screen hidden">
+  <div class="panel">
+    <h2 id="overTitle">¡Plaf!</h2>
+    <div class="stats">
+      <span>Puntos</span><b id="sScore">0</b>
+      <span>Pulgones</span><b id="sAphids">0</b>
+      <span>Flores</span><b id="sFlowers">0</b>
+      <span>Récord</span><b id="sBest">0</b>
+    </div>
+    <div id="newBest" class="hidden">¡Nuevo récord!</div>
+    <button id="again" class="big">OTRA VEZ</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   CONFIG — todos los valores de ajuste están aquí
+   ===================================================================== */
+const CFG = {
+  H: 270,                 // altura lógica en "píxeles de juego"
+  GROUND: 240,            // línea del suelo (y crece hacia abajo)
+
+  // --- FÍSICA / SALTO ---
+  // Modelo vertical inspirado directamente en Super Mario Bros. (NES, 60 Hz).
+  // SMB usa distintas fuerzas para subida y caída y limita la velocidad de caída.
+  CHARGE_MS: 760,         // Saltaflor conserva 'cargar y soltar' como control principal
+  VX_MIN: 72,  VX_MAX: 190,   // horizontal adaptada a los huecos de Saltaflor
+  VY_MIN: 240, VY_MAX: 300,   // SMB: -4 a -5 px/frame ~= -240 a -300 px/s
+  G_ASC_MIN: 450, G_ASC_MAX: 562.5,   // SMB: 0x20..0x28 /256 px/frame²
+  G_FALL_MIN: 1575, G_FALL_MAX: 2025, // SMB: 0x70..0x90 /256 px/frame²
+  FALL_MAX: 240,           // SMB limita la caída a ~4 px/frame = 240 px/s
+  LAND_TOLERANCE: 3,      // px extra de margen en el borde de la flor
+  PERFECT_FRAC: 0.30,     // fracción del radio de la flor = "perfecto"
+
+  // --- GENERACIÓN ---
+  FLOWER_Y_MIN: 125, FLOWER_Y_MAX: 205,
+  MAX_RISE: 50,           // cuánto más alta puede estar la siguiente flor
+  MAX_F: 0.90,            // potencia máxima que el generador llega a exigir
+  DIFF_FLOWERS: 72,       // progresión algo más larga y suave
+
+  // --- CÁMARA ---
+  CAM_ANCHOR: 0.32,       // posición horizontal de la mariquita en pantalla
+  CAM_LERP: 5,            // suavidad de cámara (más = más rígida)
+
+  // --- PUNTUACIÓN ---
+  APHID_POINTS: 10,
+  APHID_RADIUS: 9,
+
+  // --- ENEMIGOS ---
+  ENEMY_START: 10,        // enemigos algo más tarde
+  DRAGONFLY_START: 18,    // libélulas algo más tarde
+
+  // --- MARCHITAMIENTO ---
+  WILT_START: 12,         // da más margen para aprender antes de meter presión
+  WILT_MAX: 5.4,          // segundos que aguanta una flor al principio
+  WILT_MIN: 2.8,          // segundos que aguanta con dificultad máxima
+  WILT_RAMP: 60,          // transición más gradual
+  WILT_WARN: 0.74,        // el aviso aparece algo más tarde
+};
+function wiltDuration(idx, type){
+  if (idx < CFG.WILT_START) return 0;
+  const k = clamp((idx - CFG.WILT_START) / CFG.WILT_RAMP, 0, 1);
+  return lerp(CFG.WILT_MAX, CFG.WILT_MIN, k) * (type.wiltMul || 1);
+}
+
+/* Curva de dificultad: n = número de flor que se está generando */
+function difficulty(n){
+  const d = Math.min(1, n / CFG.DIFF_FLOWERS);
+  const D = {
+    fLow:  lerp(0.16, 0.11, d),          // potencia mínima exigida
+    fHigh: lerp(0.46, CFG.MAX_F, d),     // potencia máxima exigida
+    dhMax: lerp(14, 52, d),              // variación de altura entre flores
+    widthMul: lerp(1.08, 0.64, d),       // arranque más generoso; luego estrecha
+    aphidChance: lerp(0.65, 0.85, d),
+  };
+  if (n <= 6){ D.fHigh = lerp(0.34, 0.46, n/6); D.dhMax = lerp(5, 12, n/6); D.widthMul = Math.max(D.widthMul, 1.08); }  // tutorial invisible: 6 primeras flores
+  return D;
+}
+function enemyDifficulty(n){ return clamp((n - CFG.ENEMY_START) / 60, 0, 1); }
+
+/* Tipos de flor — añade aquí nuevos modelos */
+const FLOWER_TYPES = [
+  { name:'margarita', petals:11, petal:'#ffffff', shade:'#dfe4f0', center:'#ffd23f', cshade:'#d99a1a', w:[16,22], pl:0.46, pw:0.34, wiltMul:1.0 },
+  { name:'amapola',   petals:5,  petal:'#ff5a4e', shade:'#cf3533', center:'#2b2140', cshade:'#140f22', w:[15,20], pl:0.50, pw:0.80, wiltMul:0.85 },
+  { name:'girasol',   petals:14, petal:'#ffc93a', shade:'#e89a1e', center:'#7a4a24', cshade:'#4e2e16', w:[19,25], pl:0.38, pw:0.40, wiltMul:1.3 },
+  { name:'azul',      petals:5,  petal:'#5b8cff', shade:'#3c64d4', center:'#fff6c8', cshade:'#e8cf62', w:[13,18], pl:0.48, pw:0.70 },
+  { name:'violeta',   petals:6,  petal:'#a070e8', shade:'#7a4cc4', center:'#ffe066', cshade:'#d9a92a', w:[13,18], pl:0.46, pw:0.62 },
+  { name:'rosa',      petals:8,  petal:'#ff8cc6', shade:'#e0629f', center:'#fff0a0', cshade:'#e6c35a', w:[14,20], pl:0.44, pw:0.50 },
+];
+
+/* =====================================================================
+   UTILIDADES
+   ===================================================================== */
+const TAU = Math.PI * 2;
+const lerp  = (a,b,t) => a + (b-a)*t;
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+const rand  = (a,b) => a + Math.random()*(b-a);
+const hash  = n => { const s = Math.sin(n*127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const _rgb = new Map();
+function hexRgb(h){ let v = _rgb.get(h); if (!v){ const n = parseInt(h.slice(1), 16); v = [n>>16&255, n>>8&255, n&255]; _rgb.set(h, v); } return v; }
+function mixColor(a, b, t){ const A = hexRgb(a), B = hexRgb(b); return `rgb(${Math.round(A[0]+(B[0]-A[0])*t)},${Math.round(A[1]+(B[1]-A[1])*t)},${Math.round(A[2]+(B[2]-A[2])*t)})`; }
+function prune(arr, keep){ let j = 0; for (let i=0;i<arr.length;i++) if (keep(arr[i])) arr[j++] = arr[i]; arr.length = j; }
+
+/* =====================================================================
+   FÍSICA DEL SALTO (analítica: el generador usa exactamente esto)
+   dh = yDestino - yOrigen (positivo = destino más bajo)
+   ===================================================================== */
+function jumpVel(p){
+  return {
+    vx: lerp(CFG.VX_MIN, CFG.VX_MAX, p),
+    vy: lerp(CFG.VY_MIN, CFG.VY_MAX, p),
+    gAsc: lerp(CFG.G_ASC_MIN, CFG.G_ASC_MAX, p),
+    gFall: lerp(CFG.G_FALL_MIN, CFG.G_FALL_MAX, p)
+  };
+}
+function apexRise(p){
+  const v = jumpVel(p);
+  return v.vy*v.vy/(2*v.gAsc);
+}
+function fallTimeForDistance(dist, gFall){
+  if (dist <= 0) return 0;
+  const tCap = CFG.FALL_MAX / gFall;
+  const dCap = 0.5 * gFall * tCap * tCap;
+  if (dist <= dCap) return Math.sqrt(2*dist/gFall);
+  return tCap + (dist-dCap)/CFG.FALL_MAX;
+}
+function flightTime(p, dh){
+  const v = jumpVel(p);
+  const rise = apexRise(p);
+  if (dh < -rise) return -1;
+  return v.vy/v.gAsc + fallTimeForDistance(rise + dh, v.gFall);
+}
+function jumpDist(p, dh){ const t = flightTime(p, dh); return t < 0 ? -1 : jumpVel(p).vx * t; }
+function minPowerFor(dh){
+  if (dh >= 0) return 0;
+  const need = -dh + 10;
+  if (apexRise(1) < need) return 1;
+  let lo=0, hi=1;
+  for(let i=0;i<28;i++){ const m=(lo+hi)/2; if(apexRise(m)<need) lo=m; else hi=m; }
+  return (lo+hi)/2;
+}
+function jumpYAt(p, t){
+  const v=jumpVel(p), ta=v.vy/v.gAsc;
+  if(t<=ta) return -v.vy*t + 0.5*v.gAsc*t*t;
+  const rise=apexRise(p), tf=t-ta, tCap=CFG.FALL_MAX/v.gFall;
+  let fall;
+  if(tf<=tCap) fall=0.5*v.gFall*tf*tf;
+  else { const dCap=0.5*v.gFall*tCap*tCap; fall=dCap+CFG.FALL_MAX*(tf-tCap); }
+  return -rise + fall;
+}
+function powerForDist(d, dh){        // inversa por bisección (jumpDist es monótona en p)
+  let lo = minPowerFor(dh), hi = 1;
+  if (jumpDist(lo, dh) >= d) return lo;
+  if (jumpDist(hi, dh) < d) return -1;
+  for (let i=0;i<28;i++){ const m = (lo+hi)/2; if (jumpDist(m, dh) < d) lo = m; else hi = m; }
+  return (lo+hi)/2;
+}
+
+/* =====================================================================
+   CANVAS (render a baja resolución y escalado sin suavizado)
+   ===================================================================== */
+const H = CFG.H;
+const view = document.getElementById('c');
+const vctx = view.getContext('2d');
+const off = document.createElement('canvas');
+const ctx = off.getContext('2d');
+let LW = 480, scale = 1, ox = 0, oy = 0, CAM = 0;
+
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = window.innerWidth, h = window.innerHeight;
+  view.width = Math.round(w*dpr); view.height = Math.round(h*dpr);
+  LW = clamp(Math.round(H * w / h), 360, 640);
+  off.width = LW; off.height = H;
+  ctx.imageSmoothingEnabled = false;
+  vctx.imageSmoothingEnabled = false;
+  scale = Math.min(view.width / LW, view.height / H);
+  ox = Math.round((view.width  - LW*scale) / 2);
+  oy = Math.round((view.height - H*scale) / 2);
+}
+function present(){
+  vctx.fillStyle = '#6ec0ef'; vctx.fillRect(0, 0, view.width, view.height);
+  vctx.fillStyle = '#3f8a44'; vctx.fillRect(0, oy + H*scale - 2, view.width, view.height);
+  vctx.drawImage(off, ox, oy, LW*scale, H*scale);
+}
+function ell(x, y, rx, ry, rot){ ctx.beginPath(); ctx.ellipse(x, y, Math.max(.1,rx), Math.max(.1,ry), rot||0, 0, TAU); ctx.fill(); }
+
+/* =====================================================================
+   SPRITES pixel art (pre-renderizados)
+   ===================================================================== */
+function makeSprite(rows, pal){
+  const cv = document.createElement('canvas'); cv.width = rows[0].length; cv.height = rows.length;
+  const c = cv.getContext('2d');
+  rows.forEach((row, y) => { for (let x=0;x<row.length;x++){ const col = pal[row[x]]; if (col){ c.fillStyle = col; c.fillRect(x, y, 1, 1); } } });
+  return cv;
+}
+const BUG_BODY = [
+  "..........k.",
+  "...rrrr...k.",
+  "..rhhrrr.kk.",
+  ".rhrrkrrkkkk",
+  ".rkrrrrrkkwk",
+  "rrrrrrkrkkkk",
+  "rkrrrrrrrkk.",
+  ".dddddddd...",
+];
+const PAL_BUG = { r:'#e8423f', h:'#ff9d8c', k:'#1d1726', w:'#ffffff', d:'#a32835' };
+const SPR = {
+  bugA: makeSprite([...BUG_BODY, ".k..k...k..."], PAL_BUG),
+  bugB: makeSprite([...BUG_BODY, "..k..k..k..."], PAL_BUG),
+  aphid: makeSprite(["..gg.", ".gggk", "gGgg.", ".l.l."], { g:'#a6ec6a', G:'#6fbf3f', k:'#1d1726', l:'#3d6b2a' }),
+  wasp: makeSprite([
+    ".kkyykyyk..",
+    "kwkyykyykk.",
+    "kkkyykyykkk",
+    ".kkyykyyk..",
+    "..k...k....",
+  ], { k:'#2b2140', y:'#ffd23f', w:'#ffffff' }),
+  dfly: makeSprite([
+    ".EE..............",
+    "EEttbcbcbcbcbcbc.",
+    ".EE..............",
+  ], { E:'#2a5fa8', t:'#33c2b0', b:'#33c2b0', c:'#1f8d82' }),
+};
+
+/* =====================================================================
+   AUDIO (Web Audio, todo sintetizado)
+   ===================================================================== */
+const Sfx = (() => {
+  let ac = null, master, sfx, mus, noiseBuf, chO = null, chG = null, timer = null, nextT = 0, step = 0;
+  let muted = false;
+  try { muted = localStorage.getItem('saltaflor_mute') === '1'; } catch(e){}
+  const mtof = m => 440 * Math.pow(2, (m-69)/12);
+  const VOL = 0.55;
+
+  function init(){
+    if (!ac){
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      ac = new AC();
+      master = ac.createGain(); master.gain.value = muted ? 0 : VOL; master.connect(ac.destination);
+      sfx = ac.createGain(); sfx.gain.value = 0.6; sfx.connect(master);
+      mus = ac.createGain(); mus.gain.value = 0.14; mus.connect(master);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate*0.5, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    }
+    if (ac.state === 'suspended') ac.resume();
+  }
+  function tone(type, f0, f1, dur, vol, when, dest){
+    if (!ac) return;
+    const t = ac.currentTime + (when||0);
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(dest || sfx); o.start(t); o.stop(t+dur+0.03);
+  }
+  function noise(dur, vol, freq){
+    if (!ac) return;
+    const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = freq || 1200;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    s.connect(f); f.connect(g); g.connect(sfx); s.start(t); s.stop(t+dur+0.02);
+  }
+
+  // Música: bucle chiptune de 4 compases
+  const MEL  = [72,0,76,79, 76,0,74,72, 74,0,76,74, 72,0,67,0, 69,0,72,76, 74,0,72,69, 67,0,69,71, 72,0,0,0];
+  const BASS = [48,48,48,43, 53,45,43,43];
+  const EIGHTH = 60/132/2;
+  function schedule(){
+    while (nextT < ac.currentTime + 0.15){
+      const i = step % 32, m = MEL[i];
+      if (m) noteAt('square', mtof(m), nextT, EIGHTH*0.8, 0.45);
+      if (i % 2 === 0){ const b = BASS[(i/4)|0] + (i % 4 === 2 ? 12 : 0); noteAt('triangle', mtof(b), nextT, EIGHTH*0.9, 0.8); }
+      nextT += EIGHTH; step++;
+    }
+  }
+  function noteAt(type, f, t, dur, vol){
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(mus); o.start(t); o.stop(t+dur+0.02);
+  }
+
+  return {
+    init,
+    isMuted: () => muted,
+    toggleMute(){
+      muted = !muted;
+      try { localStorage.setItem('saltaflor_mute', muted ? '1' : '0'); } catch(e){}
+      if (ac) master.gain.setTargetAtTime(muted ? 0 : VOL, ac.currentTime, 0.02);
+      return muted;
+    },
+    startMusic(){ if (!ac || timer) return; nextT = ac.currentTime + 0.08; step = 0; timer = setInterval(schedule, 25); },
+    stopMusic(){ if (timer){ clearInterval(timer); timer = null; } },
+    chargeStart(){
+      if (!ac) return;
+      const t = ac.currentTime;
+      chO = ac.createOscillator(); chG = ac.createGain();
+      chO.type = 'square'; chO.frequency.value = 160;
+      chG.gain.setValueAtTime(0.0001, t); chG.gain.linearRampToValueAtTime(0.03, t+0.03);
+      chO.connect(chG); chG.connect(sfx); chO.start(t);
+    },
+    chargeUpdate(p){ if (chO) chO.frequency.setTargetAtTime(160 + 440*p, ac.currentTime, 0.02); },
+    chargeStop(){
+      if (!chO) return;
+      const t = ac.currentTime;
+      chG.gain.cancelScheduledValues(t); chG.gain.setTargetAtTime(0.0001, t, 0.015);
+      chO.stop(t + 0.08); chO = null; chG = null;
+    },
+    jump(){ tone('square', 260, 720, 0.12, 0.16); },
+    land(){ tone('triangle', 230, 110, 0.09, 0.35); noise(0.05, 0.06, 900); },
+    aphid(k){ const f = 880 * Math.pow(2, Math.min(k-1, 6)*2/12); tone('square', f, f, 0.05, 0.11); tone('square', f*1.5, f*1.5, 0.09, 0.11, 0.05); },
+    perfect(k){ [0,4,7,12].forEach((s,i) => tone('triangle', 660*Math.pow(2,(s+Math.min(k,4))/12), 0, 0.09, 0.18, i*0.05)); },
+    hit(){ noise(0.25, 0.3, 700); tone('sawtooth', 420, 60, 0.35, 0.18); },
+    fall(){ tone('triangle', 700, 90, 0.6, 0.25); },
+    splash(){ noise(0.18, 0.12, 2400); },
+    tick(w){ tone('triangle', 1400, 0, 0.03, 0.04 + 0.05*w); },
+    wilt(){ tone('sawtooth', 220, 70, 0.3, 0.12); noise(0.2, 0.08, 500); },
+  };
+})();
+
+/* =====================================================================
+   ESTADO
+   ===================================================================== */
+const G = {
+  state:'title', time:0, camX:0, shake:0,
+  flowers:[], aphids:[], enemies:[], particles:[], texts:[],
+  score:0, aphidsGot:0, flowersPassed:0, streak:0, jumpAphids:0,
+  best:0, lastPower:-1, enemyTimer:0, deathTimer:null, splashed:false, overAt:0, wiltShown:false,
+  bufferedPress:0,
+};
+try { G.best = parseInt(localStorage.getItem('saltaflor_best') || '0', 10) || 0; } catch(e){}
+let P = null;   // la mariquita
+
+/* =====================================================================
+   GENERADOR PROCEDURAL
+   ===================================================================== */
+function makeFlower(x, y, w, type, idx){
+  return {
+    x, y, w, type, idx,
+    petals: type.petals + (type.petals > 8 ? ((Math.random()*3)|0) - 1 : 0),
+    rot: rand(0, TAU), phase: rand(0, TAU),
+    dip:0, dipT:0, dipA:0,
+    wiltDur: wiltDuration(idx, type), wiltT:0, sink:0, tickT:0, dead:false,
+    leafAt: rand(0.35, 0.7), leafSide: Math.random() < 0.5 ? -1 : 1,
+  };
+}
+
+function genNextFlower(){
+  const prev = G.flowers[G.flowers.length-1];
+  const n = prev.idx + 1;
+  const D = difficulty(n);
+
+  let type;
+  do { type = FLOWER_TYPES[(Math.random()*FLOWER_TYPES.length)|0]; } while (type === prev.type && Math.random() < 0.85);
+  const w = Math.max(9, Math.round(rand(type.w[0], type.w[1]) * D.widthMul));
+
+  let y = clamp(prev.y + rand(-D.dhMax, D.dhMax), CFG.FLOWER_Y_MIN, CFG.FLOWER_Y_MAX);
+  if (prev.y - y > CFG.MAX_RISE) y = prev.y - CFG.MAX_RISE;
+  y = Math.round(y);
+  const dh = y - prev.y;
+
+  // Se elige la POTENCIA necesaria (no la distancia): así nunca hay saltos imposibles
+  const fLow  = Math.max(D.fLow, minPowerFor(dh) + 0.06);
+  const fHigh = Math.max(fLow, D.fHigh);
+  let f = lerp(fLow, fHigh, (Math.random() + Math.random()) / 2);
+  let dist = jumpDist(f, dh);
+
+  const minD = prev.w + w + 6;            // que no se solapen
+  if (dist < minD){ const pf = powerForDist(minD, dh); if (pf >= 0){ f = pf; dist = minD; } }
+
+  const fl = makeFlower(prev.x + dist, y, w, type, n);
+  G.flowers.push(fl);
+  if (Math.random() < D.aphidChance) placeAphids(prev, fl);
+}
+
+// Los pulgones se colocan sobre un arco REAL que acaba en la flor siguiente
+function placeAphids(a, b){
+  const dh = b.y - a.y;
+  const target = b.x + rand(-0.6, 0.6) * b.w;   // cerca, centro o lejos dentro de la flor
+  const p = powerForDist(target - a.x, dh);
+  if (p < 0) return;
+  const v = jumpVel(p), T = flightTime(p, dh);
+  const r = Math.random();
+  const fr = r < 0.4 ? [0.5] : r < 0.7 ? [0.4, 0.6] : [0.32, 0.5, 0.68];
+  for (const k of fr){
+    const t = T * k;
+    G.aphids.push({
+      x: a.x + v.vx*t,
+      y: a.y + jumpYAt(p, t) - 4.5,
+      got:false, phase: rand(0, TAU), stemOff: Math.round(rand(-2, 2)), tilt: rand(-0.35, 0.35),
+    });
+  }
+}
+
+function spawnEnemy(de){
+  const type = (G.flowersPassed >= CFG.DRAGONFLY_START && Math.random() < 0.5) ? 'dfly' : 'wasp';
+  const amp = type === 'dfly' ? rand(6, 10 + 8*de) : (Math.random() < 0.4 ? rand(2, 5) : 0);
+  let minTop = 999;
+  for (const f of G.flowers){ const sx = f.x - G.camX; if (sx > -20 && sx < LW + 100) minTop = Math.min(minTop, f.y); }
+  const maxY = minTop - 24 - amp;                 // nunca a la altura de una mariquita posada
+  const minY = Math.max(28, maxY - 85);
+  const baseY = rand(minY, Math.max(minY, maxY));
+  G.enemies.push({
+    type, x: G.camX + LW + 80, baseY, y: baseY, amp,
+    freq: type === 'dfly' ? rand(2, 3.5) : rand(3, 5),
+    speed: lerp(45, 105, de) * rand(0.85, 1.15) * (type === 'dfly' ? 1.15 : 1),
+    t: rand(0, 6),
+  });
+}
+
+/* =====================================================================
+   PARTIDA
+   ===================================================================== */
+function resetWorld(){
+  G.flowers.length = 0; G.aphids.length = 0; G.enemies.length = 0; G.particles.length = 0; G.texts.length = 0;
+  G.score = 0; G.aphidsGot = 0; G.flowersPassed = 0; G.streak = 0; G.jumpAphids = 0;
+  G.lastPower = -1; G.enemyTimer = 4.5; G.deathTimer = null; G.splashed = false; G.shake = 0; G.wiltShown = false; G.bufferedPress = 0;
+  const f0 = makeFlower(80, 190, 22, FLOWER_TYPES[0], 0);
+  G.flowers.push(f0);
+  P = { x:80, y:190, vx:0, vy:0, jumpPower:0, grounded:true, onFlower:f0, charging:false, chargeT:0, power:0,
+        squashT:0, airT:0, rot:0, dead:false, deathType:null, wilted:false };
+  G.camX = P.x - LW*CFG.CAM_ANCHOR;
+  while (G.flowers[G.flowers.length-1].x < G.camX + LW + 140) genNextFlower();
+  updateHUD();
+}
+
+function startGame(){
+  Sfx.init();
+  resetWorld();
+  G.state = 'play';
+  UI.title.classList.add('hidden'); UI.over.classList.add('hidden'); UI.hud.classList.remove('hidden');
+  Sfx.startMusic();
+}
+
+function gameOver(){
+  G.state = 'over';
+  Sfx.stopMusic();
+  const isBest = G.score > G.best;
+  if (isBest){ G.best = G.score; try { localStorage.setItem('saltaflor_best', String(G.best)); } catch(e){} }
+  UI.overTitle.textContent = P.deathType === 'hit' ? '¡Ay!' : P.wilted ? '¡Se marchitó!' : '¡Plaf!';
+  UI.sScore.textContent = G.score; UI.sAphids.textContent = G.aphidsGot;
+  UI.sFlowers.textContent = G.flowersPassed; UI.sBest.textContent = G.best;
+  UI.newBest.classList.toggle('hidden', !isBest || G.score === 0);
+  UI.over.classList.remove('hidden');
+  G.overAt = performance.now();
+  updateHUD();
+}
+
+function updateHUD(){ UI.score.textContent = G.score; UI.best.textContent = Math.max(G.best, G.score); }
+
+/* =====================================================================
+   INPUT
+   ===================================================================== */
+function pressStart(){
+  if (G.state !== 'play' || P.dead || P.charging) return;
+  if (!P.grounded){ G.bufferedPress = 0.11; return; } // pequeño buffer: hace el control más permisivo
+  P.charging = true; P.chargeT = 0; P.power = 0;
+  Sfx.chargeStart();
+}
+function pressEnd(){
+  if (!P || !P.charging) return;
+  P.charging = false; Sfx.chargeStop();
+  if (G.state === 'play' && !P.dead) doJump(P.power);
+}
+function cancelCharge(){ if (P && P.charging){ P.charging = false; Sfx.chargeStop(); } }
+
+function doJump(p){
+  const v = jumpVel(p);
+  P.vx = v.vx; P.vy = -v.vy; P.jumpPower = p; P.grounded = false; P.onFlower = null; P.airT = 0;
+  G.lastPower = p; G.jumpAphids = 0;
+  Sfx.jump();
+  burst(P.x, P.y, 4, ['#ffffff', '#fff6c8'], 30, 60, 0.3, 1);
+}
+
+view.addEventListener('pointerdown', e => { e.preventDefault(); Sfx.init(); pressStart(); });
+window.addEventListener('pointerup', pressEnd);
+window.addEventListener('pointercancel', pressEnd);
+window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'Enter'){
+    e.preventDefault(); if (e.repeat) return;
+    if (G.state === 'title') startGame();
+    else if (G.state === 'over'){ if (performance.now() - G.overAt > 350) startGame(); }
+    else { Sfx.init(); pressStart(); }
+  } else if (e.code === 'KeyM') toggleMute();
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'Enter'){ e.preventDefault(); pressEnd(); }
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) cancelCharge(); });
+
+/* =====================================================================
+   UPDATE
+   ===================================================================== */
+function land(f){
+  P.y = f.y; P.vx = 0; P.vy = 0; P.grounded = true; P.onFlower = f; P.squashT = 0.16; P.rot = 0;
+  f.dipT = 0.0001; f.dipA = 2 + Math.min(3, G.lastPower*4);
+  burst(P.x, f.y, 7, [f.type.petal, '#fff8d0', f.type.center], 55, 220, 0.45, 1);
+  Sfx.land();
+  if (G.bufferedPress > 0){ G.bufferedPress = 0; pressStart(); }
+  if (f.idx > G.flowersPassed){
+    G.flowersPassed = f.idx;
+    G.score += 1;
+    if (Math.abs(P.x - f.x) <= Math.max(2.5, f.w * CFG.PERFECT_FRAC)){
+      G.streak++;
+      const bonus = 4 * Math.min(G.streak, 6);
+      G.score += bonus;
+      addText(f.x, f.y - 18, (G.streak > 1 ? 'PERFECTO x' + G.streak : 'PERFECTO') + ' +' + bonus, '#fff27a');
+      if (G.streak >= 3) burst(f.x, f.y - 4, 3 + Math.min(5,G.streak), ['#ffffff','#fff27a','#ffd23f'], 35, 80, 0.35, 1);
+      Sfx.perfect(G.streak);
+    } else {
+      G.streak = 0;
+    }
+    updateHUD();
+  }
+}
+
+function collectAphid(a){
+  a.got = true; G.aphidsGot++; G.jumpAphids++;
+  G.score += CFG.APHID_POINTS;
+  addText(a.x, a.y - 9, '+' + CFG.APHID_POINTS, '#d6ff7a');
+  burst(a.x, a.y, 8, ['#a6ec6a', '#ffffff', '#fff27a'], 60, 0, 0.35, 1);
+  Sfx.aphid(G.jumpAphids);
+  updateHUD();
+}
+
+function collapseFlower(f){
+  f.dead = true;
+  burst(f.x, f.y + 2, 12, ['#b39064', '#8a6a44', f.type.petal], 50, 120, 0.7, 1);
+  Sfx.wilt();
+  if (P.onFlower === f && P.grounded){
+    cancelCharge();
+    P.grounded = false; P.onFlower = null; P.vx = 0; P.vy = 40; P.wilted = true;
+  }
+}
+
+function updateWilt(dt){
+  const f = P.onFlower;
+  if (G.state !== 'play' || !P.grounded || !f || f.dead || f.wiltDur <= 0) return;
+  f.wiltT += dt;                                  // solo se marchita mientras estás encima
+  const w = f.wiltT / f.wiltDur;
+  if (!G.wiltShown){ G.wiltShown = true; addText(LW/2, 38, '¡SE MARCHITA!', '#ffb36b', true, 'alert'); }
+  if (w > CFG.WILT_WARN){
+    f.tickT -= dt;
+    if (f.tickT <= 0){ Sfx.tick(w); f.tickT = lerp(0.3, 0.1, (w - CFG.WILT_WARN) / (1 - CFG.WILT_WARN)); }
+  }
+  if (Math.random() < w*dt*6){
+    burst(f.x + rand(-0.6, 0.6)*f.w, f.y + 3, 1, [mixColor(f.type.petal, '#b39064', clamp(w, 0, 1))], 12, 40, 1.1, 1);
+  }
+  if (w >= 1) collapseFlower(f);
+}
+
+function die(type){
+  if (P.dead) return;
+  P.dead = true; P.deathType = type; G.state = 'dying'; G.deathTimer = null; G.splashed = false; G.streak = 0;
+  cancelCharge();
+  if (type === 'hit'){
+    P.grounded = false; P.onFlower = null; P.vx = -50; P.vy = -200; G.shake = 0.3;
+    Sfx.hit();
+    burst(P.x, P.y - 4, 12, ['#ffffff', '#ffd23f', '#e8423f'], 90, 120, 0.5, 1);
+  } else {
+    Sfx.fall();
+  }
+}
+
+function stepPlayer(h){
+  const py = P.y;
+  P.x += P.vx*h;
+  const prof = jumpVel(P.jumpPower == null ? 0.5 : P.jumpPower);
+  const g = P.vy < 0 ? prof.gAsc : prof.gFall;
+  const vy0 = P.vy;
+  P.vy = Math.min(CFG.FALL_MAX, P.vy + g*h);
+  P.y += (vy0 + P.vy) * 0.5 * h;
+  if (P.dead) return;
+
+  if (P.vy > 0){
+    for (const f of G.flowers){
+      if (!f.dead && py <= f.y && P.y >= f.y && Math.abs(P.x - f.x) <= f.w + CFG.LAND_TOLERANCE){ land(f); return; }
+    }
+  }
+  const by = P.y - 4.5, r2 = CFG.APHID_RADIUS * CFG.APHID_RADIUS;
+  for (const a of G.aphids){
+    if (a.got) continue;
+    const dx = a.x - P.x, dy = a.y - by;
+    if (dx*dx + dy*dy < r2) collectAphid(a);
+  }
+  if (P.y > CFG.GROUND + 4) die('fall');
+}
+
+function enemyHits(e){
+  const bx = P.x, by = P.y - 4.5;
+  const circles = e.type === 'wasp' ? [[0,0,5]] : [[1,0,4],[8,0,3]];
+  for (const c of circles){
+    const dx = e.x + c[0] - bx, dy = e.y + c[1] - by, rr = c[2] + 4;
+    if (dx*dx + dy*dy < rr*rr) return true;
+  }
+  return false;
+}
+
+function updateEnemies(dt){
+  if (G.state === 'play' && G.flowersPassed >= CFG.ENEMY_START){
+    const de = enemyDifficulty(G.flowersPassed);
+    G.enemyTimer -= dt;
+    if (G.enemyTimer <= 0 && G.enemies.length < (de > 0.45 ? 2 : 1)){
+      spawnEnemy(de);
+      G.enemyTimer = lerp(7.0, 3.0, de) * rand(0.80, 1.20);
+    }
+  }
+  for (const e of G.enemies){
+    e.t += dt; e.x -= e.speed*dt;
+    e.y = e.baseY + (e.amp ? Math.sin(e.t*e.freq) * e.amp : 0);
+    if (!P.dead && enemyHits(e)) die('hit');
+  }
+  prune(G.enemies, e => e.x > G.camX - 60);
+}
+
+function burst(x, y, n, colors, spd, g, life, size){
+  for (let i=0;i<n;i++){
+    if (G.particles.length > 220) G.particles.shift();
+    const a = rand(0, TAU), s = rand(spd*0.3, spd);
+    G.particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - spd*0.4, g, life: rand(life*0.6, life), max: life,
+                       c: colors[(Math.random()*colors.length)|0], s: size });
+  }
+}
+function addText(x, y, text, c, screen=false, kind='local'){
+  G.texts.push({ x, y, text, c, t:0, screen, kind });
+}
+
+function update(dt){
+  G.time += dt;
+  if (G.bufferedPress > 0) G.bufferedPress = Math.max(0, G.bufferedPress - dt);
+
+  for (const f of G.flowers){
+    if (f.dipT > 0){
+      f.dipT += dt;
+      f.dip = f.dipA * Math.exp(-7*f.dipT) * Math.cos(17*f.dipT);
+      if (f.dipT > 1.2){ f.dipT = 0; f.dip = 0; }
+    }
+    const w = f.wiltDur > 0 ? clamp(f.wiltT / f.wiltDur, 0, 1) : 0;
+    f.sink = w*w*4;
+  }
+  updateWilt(dt);
+  if (P.squashT > 0) P.squashT = Math.max(0, P.squashT - dt);
+
+  if (P.charging){
+    P.chargeT += dt*1000;
+    const raw = clamp(P.chargeT / CFG.CHARGE_MS, 0, 1);
+    // Curva perceptiva: más control en pulsaciones cortas/medias sin perder potencia máxima.
+    P.power = 1 - Math.pow(1 - raw, 1.12);
+    Sfx.chargeUpdate(P.power);
+  }
+
+  if (!P.grounded){
+    P.airT += dt;
+    const steps = Math.ceil(dt / (1/240)), h = dt / steps;
+    for (let i=0; i<steps && !P.grounded; i++) stepPlayer(h);
+    if (!P.dead) P.rot = clamp(P.vy/700, -0.45, 0.6) * 0.8;
+    else if (P.deathType === 'hit') P.rot += dt*14;
+  }
+
+  if (G.state === 'dying'){
+    if (P.deathType === 'fall' && !G.splashed && P.y > CFG.GROUND + 16){
+      G.splashed = true; P.vx = 0;
+      burst(P.x, CFG.GROUND + 4, 10, ['#6cba5c', '#a6ec6a', '#e8423f'], 70, 260, 0.5, 1);
+      Sfx.splash();
+      G.deathTimer = 0.55;
+    }
+    if (P.deathType === 'hit' && P.y > H + 16 && G.deathTimer === null) G.deathTimer = 0.25;
+    if (G.deathTimer !== null){ G.deathTimer -= dt; if (G.deathTimer <= 0){ G.deathTimer = null; gameOver(); } }
+  }
+
+  if (!P.dead){
+    const target = P.x - LW*CFG.CAM_ANCHOR;
+    G.camX += (target - G.camX) * (1 - Math.exp(-CFG.CAM_LERP*dt));
+  }
+  if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
+
+  while (G.flowers[G.flowers.length-1].x < G.camX + LW + 140) genNextFlower();
+  prune(G.flowers, f => f.x > G.camX - 60 || f === P.onFlower);
+  prune(G.aphids,  a => a.x > G.camX - 30);
+
+  updateEnemies(dt);
+
+  for (const p of G.particles){ p.life -= dt; p.vy += p.g*dt; p.x += p.vx*dt; p.y += p.vy*dt; }
+  prune(G.particles, p => p.life > 0);
+  for (const t of G.texts){ t.t += dt; t.y -= 22*dt; }
+  prune(G.texts, t => t.t < 0.9);
+}
+
+/* =====================================================================
+   RENDER — capas de fondo a delante
+   ===================================================================== */
+const SKY = ['#6ec0ef','#7cc7f0','#8bcef1','#9ad5f1','#aadbf0','#bbe2ef','#cce8ec','#ddefe6'];
+
+function drawSky(){
+  const bh = Math.ceil(200 / SKY.length);
+  for (let i=0;i<SKY.length;i++){ ctx.fillStyle = SKY[i]; ctx.fillRect(0, i*bh, LW, bh+1); }
+  ctx.fillStyle = SKY[SKY.length-1]; ctx.fillRect(0, 200, LW, H-200);
+  ctx.fillStyle = 'rgba(255,246,200,0.45)'; ell(LW-70, 48, 22, 22);
+  ctx.fillStyle = '#fff3b0'; ell(LW-70, 48, 14, 14);
+}
+
+function drawClouds(){
+  const offs = CAM*0.06 + G.time*3, span = LW + 300;
+  for (let i=0;i<7;i++){
+    const base = i*span/7 + hash(i+1)*60;
+    const x = Math.round(((base - offs) % span + span) % span - 150);
+    const y = Math.round(18 + hash(i*3.3)*55), s = 0.7 + hash(i*7.1)*0.7;
+    ctx.fillStyle = '#ffffff';
+    ell(x+12*s, y, 10*s, 7*s); ell(x+24*s, y-4*s, 12*s, 9*s); ell(x+37*s, y, 10*s, 6*s);
+    ctx.fillRect(x+4*s, y, 42*s, 5*s);
+    ctx.fillStyle = '#dcebf7'; ctx.fillRect(x+4*s, y+3*s, 42*s, 2*s);
+  }
+}
+
+function drawRidge(factor, base, amp, fr, color, snow){
+  const offs = CAM*factor;
+  ctx.fillStyle = color;
+  for (let x=0; x<LW; x+=2){
+    const wx = x + offs;
+    const n = Math.sin(wx*fr[0])*0.5 + Math.sin(wx*fr[1] + 1.7)*0.3 + Math.sin(wx*fr[2] + 4.1)*0.2;
+    const y = Math.round((base - amp*(n*0.5 + 0.5)) / 2) * 2;
+    ctx.fillRect(x, y, 2, H - y);
+    if (snow && y < base - amp*0.72){ ctx.fillStyle = snow; ctx.fillRect(x, y, 2, 4); ctx.fillStyle = color; }
+  }
+}
+
+function drawTrees(){
+  const offs = CAM*0.5, step = 26, k0 = Math.floor(offs/step) - 2;
+  for (let k=k0; k<k0 + LW/step + 4; k++){
+    if (hash(k*1.31) < 0.35) continue;
+    const x = Math.round(k*step - offs + hash(k*2.7)*12), s = 0.7 + hash(k*4.1)*0.6;
+    const base = 236, h = Math.round(12*s);
+    ctx.fillStyle = '#6d5a48'; ctx.fillRect(x-1, base-h, 2, h);
+    ctx.fillStyle = '#5aa868'; ell(x, base-h-4*s, 7*s, 8*s);
+    ctx.fillStyle = '#76c47e'; ell(x-2*s, base-h-6*s, 3.5*s, 4*s);
+  }
+}
+
+function drawGround(){
+  ctx.fillStyle = '#6cba5c'; ctx.fillRect(0, CFG.GROUND-2, LW, 2);
+  ctx.fillStyle = '#57a64e'; ctx.fillRect(0, CFG.GROUND, LW, H - CFG.GROUND);
+  const step = 7, k0 = Math.floor(CAM/step) - 1, cols = ['#fff27a', '#ffffff', '#ff8cc6'];
+  for (let k=k0; k<k0 + LW/step + 2; k++){
+    if (hash(k*5.3) < 0.82) continue;
+    ctx.fillStyle = cols[(hash(k*2.1)*3)|0];
+    ctx.fillRect(Math.round(k*step - CAM), Math.round(CFG.GROUND + 4 + hash(k*9.1)*14), 2, 2);
+  }
+}
+
+function drawAphids(){
+  for (const a of G.aphids){
+    const sx = Math.round(a.x - CAM);
+    if (sx < -20 || sx > LW + 20) continue;
+    const ly = Math.round(a.y + 4);
+    ctx.fillStyle = '#4b8a5c'; ctx.fillRect(sx + a.stemOff, ly, 1, CFG.GROUND + 6 - ly);
+    ctx.fillStyle = '#5fa56c'; ell(sx, ly, 7, 2.5, a.tilt);
+    if (!a.got){
+      const bob = Math.round(Math.sin(G.time*3 + a.phase));
+      ctx.drawImage(SPR.aphid, sx - 2, Math.round(a.y) - 2 + bob);
+    }
+  }
+}
+
+function drawFlower(f){
+  const sx = f.x - CAM;
+  if (sx < -40 || sx > LW + 40) return;
+  const t = f.type, stemX = Math.round(sx);
+  if (f.dead){                                    // flor marchita: tallo doblado y cabeza caída
+    const by = f.y + 18;
+    ctx.fillStyle = '#7f8c46'; ctx.fillRect(stemX-1, by, 2, CFG.GROUND + 8 - by);
+    ctx.fillRect(stemX, by - 2, 3, 2);
+    ctx.fillStyle = '#8a6a44'; ell(stemX + 5, by + 2, f.w*0.35, f.w*0.25, 0.9);
+    ctx.fillStyle = '#b39064'; ell(stemX + 4, by + 1, f.w*0.22, f.w*0.15, 0.9);
+    return;
+  }
+  const w = f.wiltDur > 0 ? clamp(f.wiltT / f.wiltDur, 0, 1) : 0;
+  const top = f.y + f.dip + f.sink;
+  let sway = Math.sin(G.time*1.7 + f.phase) * 0.7;
+  if (w > CFG.WILT_WARN) sway += (Math.random() - 0.5) * 3 * (w - CFG.WILT_WARN) / (1 - CFG.WILT_WARN);
+  const cx = Math.round(sx + sway), cy = top + 3;
+  const fade = w > 0.25 ? (w - 0.25) / 0.75 * 0.9 : 0;
+  const petalCol = fade ? mixColor(t.petal, '#b39064', fade) : t.petal;
+  const shadeCol = fade ? mixColor(t.shade, '#8a6a44', fade) : t.shade;
+  const shrink = 1 - 0.3*w;
+
+  ctx.fillStyle = '#3c8c45'; ctx.fillRect(stemX-1, cy, 2, CFG.GROUND + 8 - cy);
+  ctx.fillStyle = '#64c06a'; ctx.fillRect(stemX-1, cy, 1, CFG.GROUND + 8 - cy);
+  const ly = Math.round(cy + (CFG.GROUND - cy) * f.leafAt);
+  ctx.fillStyle = '#4aa452'; ell(stemX + f.leafSide*6, ly, 6, 2.5, f.leafSide * -0.5);
+
+  const rx = f.w, ry = f.w * 0.42, n = f.petals;
+  for (let pass=0; pass<2; pass++){
+    ctx.fillStyle = pass === 0 ? shadeCol : petalCol;
+    for (let i=0;i<n;i++){
+      const a = f.rot + i/n*TAU, s = Math.sin(a), c = Math.cos(a);
+      if ((pass === 0) !== (s < 0)) continue;
+      ell(cx + c*rx*0.62, cy + s*ry*0.62 + w*2, rx*t.pl*shrink, ry*t.pw*shrink, Math.atan2(s*ry, c*rx));
+    }
+  }
+  ctx.fillStyle = t.cshade; ell(cx, cy + 1, rx*0.34, ry*0.45);
+  ctx.fillStyle = t.center; ell(cx, cy, rx*0.31, ry*0.36);
+}
+
+function drawEnemies(){
+  for (const e of G.enemies){
+    const sx = Math.round(e.x - CAM), sy = Math.round(e.y);
+    if (sx > LW - 2 && sx < LW + 90){                 // aviso en el borde
+      if (Math.floor(G.time*8) % 2 === 0){
+        ctx.fillStyle = '#2b2140'; ctx.fillRect(LW-8, sy-5, 4, 10);
+        ctx.fillStyle = '#ff4a3d'; ctx.fillRect(LW-7, sy-4, 2, 5); ctx.fillRect(LW-7, sy+2, 2, 2);
+      }
+      continue;
+    }
+    if (sx < -30 || sx > LW + 30) continue;
+    const fl = Math.abs(Math.sin(G.time*45 + e.t));
+    ctx.fillStyle = 'rgba(240,248,255,0.8)';
+    if (e.type === 'wasp'){
+      ell(sx+1, sy-4, 4, 1 + 2*fl, -0.3);
+      ctx.drawImage(SPR.wasp, sx-5, sy-2);
+    } else {
+      ell(sx+5, sy-3, 8, 1 + 1.6*fl, -0.2);
+      ell(sx+5, sy-3, 7, 1 + 1.6*(1-fl), 0.25);
+      ctx.drawImage(SPR.dfly, sx-1, sy-1);
+    }
+  }
+}
+
+function drawBug(){
+  if (G.splashed || P.y > H + 12) return;
+  let sx = P.x - CAM;
+  const sy = P.y + (P.grounded && P.onFlower ? P.onFlower.dip + P.onFlower.sink : 0);
+  let scx = 1, scy = 1;
+  if (P.charging){ scy = 1 - 0.25*P.power; scx = 1 + 0.14*P.power; if (P.power >= 1) sx += Math.random() < 0.5 ? -0.5 : 0.5; }
+  else if (P.squashT > 0){ const k = P.squashT / 0.16; scy = 1 - 0.22*k; scx = 1 + 0.18*k; }
+  else if (!P.grounded && !P.dead && P.airT < 0.15){ scy = 1.1; scx = 0.93; }
+
+  ctx.save();
+  ctx.translate(Math.round(sx), Math.round(sy));
+  if (!P.grounded){ ctx.translate(0, -4); ctx.rotate(P.rot); ctx.translate(0, 4); }
+  ctx.scale(scx, scy);
+  if (!P.grounded && !P.dead){
+    const fl = Math.abs(Math.sin(G.time*38));
+    ctx.fillStyle = 'rgba(236,244,255,0.8)';
+    ell(-3, -8, 6, 1.5 + 2*fl, -0.5);
+    ell(0, -9, 5, 1.2 + 1.5*fl, -0.9);
+  }
+  let spr = SPR.bugB;
+  if (P.grounded) spr = P.charging ? (Math.floor(G.time*20) % 2 ? SPR.bugA : SPR.bugB)
+                                   : (Math.floor(G.time*1.3) % 4 === 0 ? SPR.bugB : SPR.bugA);
+  ctx.drawImage(spr, -6, -9);
+  ctx.restore();
+}
+
+function drawParticles(){
+  for (const p of G.particles){
+    ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1);
+    ctx.fillStyle = p.c;
+    ctx.fillRect(Math.round(p.x - CAM), Math.round(p.y), p.s, p.s);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawForeground(){
+  const offs = CAM*1.25, step = 5, k0 = Math.floor(offs/step) - 1;
+  for (let k=k0; k<k0 + LW/step + 3; k++){
+    const x = Math.round(k*step - offs + hash(k)*3);
+    const h = Math.round(8 + hash(k*1.7)*14 + (hash(k*0.37) > 0.9 ? 12 : 0));
+    const sway = Math.round(Math.sin(G.time*1.4 + k*0.5) * 1.2);
+    ctx.fillStyle = hash(k*2.3) > 0.5 ? '#3f8a44' : '#4c9a4c';
+    ctx.fillRect(x, H - h + 3, 2, h);
+    ctx.fillRect(x + sway, H - h, 1, 3);
+  }
+  ctx.fillStyle = '#3a7f40'; ctx.fillRect(0, H-5, LW, 5);
+}
+
+function drawPowerBar(){
+  if (!P.charging) return;
+  const bx = Math.round(P.x - CAM) - 10;
+  const by = Math.max(4, Math.round(P.y + (P.onFlower ? P.onFlower.dip + P.onFlower.sink : 0)) - 21);
+  ctx.fillStyle = '#2b2140'; ctx.fillRect(bx-1, by-1, 22, 6);
+  ctx.fillStyle = '#fff8ec'; ctx.fillRect(bx, by, 20, 4);
+  ctx.fillStyle = (P.power >= 1 && Math.floor(G.time*12) % 2) ? '#ffffff' : `hsl(${120 - 110*P.power},80%,50%)`;
