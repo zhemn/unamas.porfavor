@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="author" content="vlfern">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#6ec0ef">
 <title>Saltaflor — Mario Physics</title>
@@ -89,6 +90,10 @@ h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text
 @keyframes blink{ 50%{ opacity:0; } }
 @media (prefers-reduced-motion: reduce){ #newBest{ animation:none; } }
 .hidden{ display:none !important; }
+.creator{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:18px;color:var(--muted);font-size:clamp(7px,1.6vmin,9px);line-height:1.7;}
+.creator b{color:var(--text);font-weight:400;}
+.creator-seal{display:block;flex:0 0 30px;width:30px;height:30px;color:#ee4266;transform:rotate(8deg);}
+.creator-seal svg{display:block;width:100%;height:100%;}
 </style>
 </head>
 <body>
@@ -107,6 +112,7 @@ h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text
     <p class="rot">Gira el móvil: se juega mejor en horizontal</p>
     <button id="play" class="big">JUGAR</button>
     <p class="hint">Suelta para saltar. Aterriza en el centro para encadenar PERFECTOS. Recoge pulgones. Esquiva enemigos. Y no te duermas: las flores se marchitan.</p>
+    <div class="creator"><span class="creator-seal" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="7" y="7" width="86" height="86" rx="6" fill="none" stroke="currentColor" stroke-width="8"/><path d="M22 30 H78 L46 74" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/><path d="M34 47 L55 62" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square"/></svg></span><span>hecho por <b>vlfern</b></span></div>
   </div>
 </div>
 
@@ -121,6 +127,7 @@ h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text
     </div>
     <div id="newBest" class="hidden">¡Nuevo récord!</div>
     <button id="again" class="big">OTRA VEZ</button>
+    <div class="creator"><span class="creator-seal" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="7" y="7" width="86" height="86" rx="6" fill="none" stroke="currentColor" stroke-width="8"/><path d="M22 30 H78 L46 74" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/><path d="M34 47 L55 62" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square"/></svg></span><span>hecho por <b>vlfern</b></span></div>
   </div>
 </div>
 
