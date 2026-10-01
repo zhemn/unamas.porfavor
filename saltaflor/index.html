@@ -5,7 +5,7 @@
 <meta name="author" content="vlfern">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#6ec0ef">
-<title>Saltaflor — Mario Physics</title>
+<title>Saltaflor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -89,6 +89,11 @@ h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text
 #newBest{ color:var(--accent); margin:0 0 1em; font-size:clamp(9px,2.4vmin,13px); animation:blink .6s steps(2) infinite; }
 @keyframes blink{ 50%{ opacity:0; } }
 @media (prefers-reduced-motion: reduce){ #newBest{ animation:none; } }
+.small{
+  display:block; margin:1.2em auto 0; font:inherit; font-size:clamp(8px,2vmin,11px);
+  background:transparent; color:var(--muted); border:3px solid currentColor; padding:.6em 1em; cursor:pointer;
+}
+.small:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
 .hidden{ display:none !important; }
 .creator{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:18px;color:var(--muted);font-size:clamp(7px,1.6vmin,9px);line-height:1.7;}
 .creator b{color:var(--text);font-weight:400;}
@@ -111,7 +116,8 @@ h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text
     <p>Pulsa y mantén para saltar</p>
     <p class="rot">Gira el móvil: se juega mejor en horizontal</p>
     <button id="play" class="big">JUGAR</button>
-    <p class="hint">Suelta para saltar. Aterriza en el centro para encadenar PERFECTOS. Recoge pulgones. Esquiva enemigos. Y no te duermas: las flores se marchitan.</p>
+    <button id="physA" class="small"></button>
+    <p class="hint">Suelta para saltar. Recoge pulgones. Esquiva avispas y libélulas. No te duermas: las flores se marchitan.</p>
     <div class="creator"><span class="creator-seal" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="7" y="7" width="86" height="86" rx="6" fill="none" stroke="currentColor" stroke-width="8"/><path d="M22 30 H78 L46 74" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/><path d="M34 47 L55 62" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square"/></svg></span><span>hecho por <b>vlfern</b></span></div>
   </div>
 </div>
@@ -127,6 +133,7 @@ h2{ font-size:clamp(18px,5vmin,32px); margin:0 0 .8em; color:var(--accent); text
     </div>
     <div id="newBest" class="hidden">¡Nuevo récord!</div>
     <button id="again" class="big">OTRA VEZ</button>
+    <button id="physB" class="small"></button>
     <div class="creator"><span class="creator-seal" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="7" y="7" width="86" height="86" rx="6" fill="none" stroke="currentColor" stroke-width="8"/><path d="M22 30 H78 L46 74" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/><path d="M34 47 L55 62" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square"/></svg></span><span>hecho por <b>vlfern</b></span></div>
   </div>
 </div>
@@ -142,23 +149,17 @@ const CFG = {
   H: 270,                 // altura lógica en "píxeles de juego"
   GROUND: 240,            // línea del suelo (y crece hacia abajo)
 
-  // --- FÍSICA / SALTO ---
-  // Modelo vertical inspirado directamente en Super Mario Bros. (NES, 60 Hz).
-  // SMB usa distintas fuerzas para subida y caída y limita la velocidad de caída.
-  CHARGE_MS: 760,         // Saltaflor conserva 'cargar y soltar' como control principal
-  VX_MIN: 72,  VX_MAX: 190,   // horizontal adaptada a los huecos de Saltaflor
-  VY_MIN: 240, VY_MAX: 300,   // SMB: -4 a -5 px/frame ~= -240 a -300 px/s
-  G_ASC_MIN: 450, G_ASC_MAX: 562.5,   // SMB: 0x20..0x28 /256 px/frame²
-  G_FALL_MIN: 1575, G_FALL_MAX: 2025, // SMB: 0x70..0x90 /256 px/frame²
-  FALL_MAX: 240,           // SMB limita la caída a ~4 px/frame = 240 px/s
-  LAND_TOLERANCE: 3,      // px extra de margen en el borde de la flor
-  PERFECT_FRAC: 0.30,     // fracción del radio de la flor = "perfecto"
+  // --- FÍSICA / SALTO ---  (gravedad y velocidad vertical: ver PHYSICS más abajo)
+  CHARGE_MS: 900,         // ms para llegar a potencia máxima
+  VX_MIN: 60,  VX_MAX: 200,   // velocidad horizontal con potencia 0 / 1
+  LAND_TOLERANCE: 2,      // px extra de margen en el borde de la flor
+  PERFECT_FRAC: 0.28,     // fracción del radio de la flor = "perfecto"
 
   // --- GENERACIÓN ---
   FLOWER_Y_MIN: 125, FLOWER_Y_MAX: 205,
   MAX_RISE: 50,           // cuánto más alta puede estar la siguiente flor
-  MAX_F: 0.90,            // potencia máxima que el generador llega a exigir
-  DIFF_FLOWERS: 72,       // progresión algo más larga y suave
+  MAX_F: 0.92,            // potencia máxima que el generador llega a exigir
+  DIFF_FLOWERS: 60,       // flores hasta llegar a dificultad máxima
 
   // --- CÁMARA ---
   CAM_ANCHOR: 0.32,       // posición horizontal de la mariquita en pantalla
@@ -169,16 +170,33 @@ const CFG = {
   APHID_RADIUS: 9,
 
   // --- ENEMIGOS ---
-  ENEMY_START: 10,        // enemigos algo más tarde
-  DRAGONFLY_START: 18,    // libélulas algo más tarde
+  ENEMY_START: 8,         // flor a partir de la cual aparecen avispas
+  DRAGONFLY_START: 16,    // flor a partir de la cual aparecen libélulas
 
   // --- MARCHITAMIENTO ---
-  WILT_START: 12,         // da más margen para aprender antes de meter presión
-  WILT_MAX: 5.4,          // segundos que aguanta una flor al principio
-  WILT_MIN: 2.8,          // segundos que aguanta con dificultad máxima
-  WILT_RAMP: 60,          // transición más gradual
-  WILT_WARN: 0.74,        // el aviso aparece algo más tarde
+  WILT_START: 10,         // flor a partir de la cual las flores se marchitan
+  WILT_MAX: 5.0,          // segundos que aguanta una flor al principio
+  WILT_MIN: 2.5,          // segundos que aguanta con dificultad máxima
+  WILT_RAMP: 50,          // flores que tarda en pasar de WILT_MAX a WILT_MIN
+  WILT_WARN: 0.7,         // fracción a partir de la cual tiembla y avisa
 };
+/* Presets de física.
+   'mario': basado en Super Mario Bros. (NES) a 60 fps — impulso de 5 px/frame,
+            gravedad de subida 0x30/256 px/frame² y de caída 0xA8/256 px/frame²
+            (3,5 veces más fuerte), velocidad de caída limitada a 5 px/frame.
+   'classic': la física original de Saltaflor (gravedad única, sin tope). */
+const PHYSICS = {
+  mario:   { GRAVITY_UP: 675, GRAVITY_DOWN: 2362.5, MAX_FALL: 300, VY_MIN: 180, VY_MAX: 360 },
+  classic: { GRAVITY_UP: 900, GRAVITY_DOWN: 900,    MAX_FALL: 1e9, VY_MIN: 200, VY_MAX: 420 },
+};
+let physMode = 'mario';
+try { if (localStorage.getItem('saltaflor_phys') === 'classic') physMode = 'classic'; } catch(e){}
+function applyPhysics(m){
+  physMode = m; Object.assign(CFG, PHYSICS[m]);
+  try { localStorage.setItem('saltaflor_phys', m); } catch(e){}
+}
+applyPhysics(physMode);
+
 function wiltDuration(idx, type){
   if (idx < CFG.WILT_START) return 0;
   const k = clamp((idx - CFG.WILT_START) / CFG.WILT_RAMP, 0, 1);
@@ -189,13 +207,13 @@ function wiltDuration(idx, type){
 function difficulty(n){
   const d = Math.min(1, n / CFG.DIFF_FLOWERS);
   const D = {
-    fLow:  lerp(0.16, 0.11, d),          // potencia mínima exigida
-    fHigh: lerp(0.46, CFG.MAX_F, d),     // potencia máxima exigida
-    dhMax: lerp(14, 52, d),              // variación de altura entre flores
-    widthMul: lerp(1.08, 0.64, d),       // arranque más generoso; luego estrecha
+    fLow:  lerp(0.18, 0.10, d),          // potencia mínima exigida
+    fHigh: lerp(0.50, CFG.MAX_F, d),     // potencia máxima exigida
+    dhMax: lerp(18, 55, d),              // variación de altura entre flores
+    widthMul: lerp(1.0, 0.6, d),         // flores más estrechas
     aphidChance: lerp(0.65, 0.85, d),
   };
-  if (n <= 6){ D.fHigh = lerp(0.34, 0.46, n/6); D.dhMax = lerp(5, 12, n/6); D.widthMul = Math.max(D.widthMul, 1.08); }  // tutorial invisible: 6 primeras flores
+  if (n <= 3){ D.fHigh = 0.42; D.dhMax = 8; }  // arranque suave
   return D;
 }
 function enemyDifficulty(n){ return clamp((n - CFG.ENEMY_START) / 60, 0, 1); }
@@ -227,48 +245,47 @@ function prune(arr, keep){ let j = 0; for (let i=0;i<arr.length;i++) if (keep(ar
    FÍSICA DEL SALTO (analítica: el generador usa exactamente esto)
    dh = yDestino - yOrigen (positivo = destino más bajo)
    ===================================================================== */
-function jumpVel(p){
-  return {
-    vx: lerp(CFG.VX_MIN, CFG.VX_MAX, p),
-    vy: lerp(CFG.VY_MIN, CFG.VY_MAX, p),
-    gAsc: lerp(CFG.G_ASC_MIN, CFG.G_ASC_MAX, p),
-    gFall: lerp(CFG.G_FALL_MIN, CFG.G_FALL_MAX, p)
-  };
+function jumpVel(p){ return { vx: lerp(CFG.VX_MIN, CFG.VX_MAX, p), vy: lerp(CFG.VY_MIN, CFG.VY_MAX, p) }; }
+// Caída desde reposo: distancia recorrida en un tiempo, y tiempo para una distancia (con tope de velocidad)
+function fallDist(t){
+  const tCap = CFG.MAX_FALL / CFG.GRAVITY_DOWN;
+  return t <= tCap ? 0.5*CFG.GRAVITY_DOWN*t*t : 0.5*CFG.MAX_FALL*tCap + CFG.MAX_FALL*(t - tCap);
 }
-function apexRise(p){
-  const v = jumpVel(p);
-  return v.vy*v.vy/(2*v.gAsc);
+function fallTime(d){
+  const tCap = CFG.MAX_FALL / CFG.GRAVITY_DOWN, dCap = 0.5*CFG.MAX_FALL*tCap;
+  return d <= dCap ? Math.sqrt(2*d / CFG.GRAVITY_DOWN) : tCap + (d - dCap) / CFG.MAX_FALL;
 }
-function fallTimeForDistance(dist, gFall){
-  if (dist <= 0) return 0;
-  const tCap = CFG.FALL_MAX / gFall;
-  const dCap = 0.5 * gFall * tCap * tCap;
-  if (dist <= dCap) return Math.sqrt(2*dist/gFall);
-  return tCap + (dist-dCap)/CFG.FALL_MAX;
+// Desplazamiento vertical (positivo = abajo) t segundos después de despegar con velocidad v hacia arriba
+function fallOffset(v, t){
+  const tA = v / CFG.GRAVITY_UP;
+  if (t <= tA) return -v*t + 0.5*CFG.GRAVITY_UP*t*t;
+  return -0.5*v*tA + fallDist(t - tA);
 }
 function flightTime(p, dh){
-  const v = jumpVel(p);
-  const rise = apexRise(p);
-  if (dh < -rise) return -1;
-  return v.vy/v.gAsc + fallTimeForDistance(rise + dh, v.gFall);
+  const v = jumpVel(p).vy;
+  const apex = v*v / (2*CFG.GRAVITY_UP);
+  const drop = apex + dh;
+  return drop < 0 ? -1 : v / CFG.GRAVITY_UP + fallTime(drop);
+}
+// Integración exacta por tramos (subida, caída, velocidad terminal): coincide con el generador
+function integrateVertical(y, vy, h){
+  if (vy < 0){
+    const tA = -vy / CFG.GRAVITY_UP;
+    if (h <= tA) return [y + vy*h + 0.5*CFG.GRAVITY_UP*h*h, vy + CFG.GRAVITY_UP*h];
+    y += vy*tA + 0.5*CFG.GRAVITY_UP*tA*tA; vy = 0; h -= tA;
+  }
+  if (vy < CFG.MAX_FALL){
+    const tC = (CFG.MAX_FALL - vy) / CFG.GRAVITY_DOWN;
+    if (h <= tC) return [y + vy*h + 0.5*CFG.GRAVITY_DOWN*h*h, vy + CFG.GRAVITY_DOWN*h];
+    y += vy*tC + 0.5*CFG.GRAVITY_DOWN*tC*tC; vy = CFG.MAX_FALL; h -= tC;
+  }
+  return [y + vy*h, vy];
 }
 function jumpDist(p, dh){ const t = flightTime(p, dh); return t < 0 ? -1 : jumpVel(p).vx * t; }
-function minPowerFor(dh){
+function minPowerFor(dh){            // potencia mínima para superar una flor más alta con margen
   if (dh >= 0) return 0;
-  const need = -dh + 10;
-  if (apexRise(1) < need) return 1;
-  let lo=0, hi=1;
-  for(let i=0;i<28;i++){ const m=(lo+hi)/2; if(apexRise(m)<need) lo=m; else hi=m; }
-  return (lo+hi)/2;
-}
-function jumpYAt(p, t){
-  const v=jumpVel(p), ta=v.vy/v.gAsc;
-  if(t<=ta) return -v.vy*t + 0.5*v.gAsc*t*t;
-  const rise=apexRise(p), tf=t-ta, tCap=CFG.FALL_MAX/v.gFall;
-  let fall;
-  if(tf<=tCap) fall=0.5*v.gFall*tf*tf;
-  else { const dCap=0.5*v.gFall*tCap*tCap; fall=dCap+CFG.FALL_MAX*(tf-tCap); }
-  return -rise + fall;
+  const vyNeed = Math.sqrt(2*CFG.GRAVITY_UP*(-dh + 10));
+  return clamp((vyNeed - CFG.VY_MIN) / (CFG.VY_MAX - CFG.VY_MIN), 0, 1);
 }
 function powerForDist(d, dh){        // inversa por bisección (jumpDist es monótona en p)
   let lo = minPowerFor(dh), hi = 1;
@@ -450,7 +467,6 @@ const G = {
   flowers:[], aphids:[], enemies:[], particles:[], texts:[],
   score:0, aphidsGot:0, flowersPassed:0, streak:0, jumpAphids:0,
   best:0, lastPower:-1, enemyTimer:0, deathTimer:null, splashed:false, overAt:0, wiltShown:false,
-  bufferedPress:0,
 };
 try { G.best = parseInt(localStorage.getItem('saltaflor_best') || '0', 10) || 0; } catch(e){}
 let P = null;   // la mariquita
@@ -510,7 +526,7 @@ function placeAphids(a, b){
     const t = T * k;
     G.aphids.push({
       x: a.x + v.vx*t,
-      y: a.y + jumpYAt(p, t) - 4.5,
+      y: a.y + fallOffset(v.vy, t) - 4.5,
       got:false, phase: rand(0, TAU), stemOff: Math.round(rand(-2, 2)), tilt: rand(-0.35, 0.35),
     });
   }
@@ -538,10 +554,10 @@ function spawnEnemy(de){
 function resetWorld(){
   G.flowers.length = 0; G.aphids.length = 0; G.enemies.length = 0; G.particles.length = 0; G.texts.length = 0;
   G.score = 0; G.aphidsGot = 0; G.flowersPassed = 0; G.streak = 0; G.jumpAphids = 0;
-  G.lastPower = -1; G.enemyTimer = 4.5; G.deathTimer = null; G.splashed = false; G.shake = 0; G.wiltShown = false; G.bufferedPress = 0;
+  G.lastPower = -1; G.enemyTimer = 4; G.deathTimer = null; G.splashed = false; G.shake = 0; G.wiltShown = false;
   const f0 = makeFlower(80, 190, 22, FLOWER_TYPES[0], 0);
   G.flowers.push(f0);
-  P = { x:80, y:190, vx:0, vy:0, jumpPower:0, grounded:true, onFlower:f0, charging:false, chargeT:0, power:0,
+  P = { x:80, y:190, vx:0, vy:0, grounded:true, onFlower:f0, charging:false, chargeT:0, power:0,
         squashT:0, airT:0, rot:0, dead:false, deathType:null, wilted:false };
   G.camX = P.x - LW*CFG.CAM_ANCHOR;
   while (G.flowers[G.flowers.length-1].x < G.camX + LW + 140) genNextFlower();
@@ -576,8 +592,7 @@ function updateHUD(){ UI.score.textContent = G.score; UI.best.textContent = Math
    INPUT
    ===================================================================== */
 function pressStart(){
-  if (G.state !== 'play' || P.dead || P.charging) return;
-  if (!P.grounded){ G.bufferedPress = 0.11; return; } // pequeño buffer: hace el control más permisivo
+  if (G.state !== 'play' || !P.grounded || P.dead || P.charging) return;
   P.charging = true; P.chargeT = 0; P.power = 0;
   Sfx.chargeStart();
 }
@@ -590,7 +605,7 @@ function cancelCharge(){ if (P && P.charging){ P.charging = false; Sfx.chargeSto
 
 function doJump(p){
   const v = jumpVel(p);
-  P.vx = v.vx; P.vy = -v.vy; P.jumpPower = p; P.grounded = false; P.onFlower = null; P.airT = 0;
+  P.vx = v.vx; P.vy = -v.vy; P.grounded = false; P.onFlower = null; P.airT = 0;
   G.lastPower = p; G.jumpAphids = 0;
   Sfx.jump();
   burst(P.x, P.y, 4, ['#ffffff', '#fff6c8'], 30, 60, 0.3, 1);
@@ -621,16 +636,14 @@ function land(f){
   f.dipT = 0.0001; f.dipA = 2 + Math.min(3, G.lastPower*4);
   burst(P.x, f.y, 7, [f.type.petal, '#fff8d0', f.type.center], 55, 220, 0.45, 1);
   Sfx.land();
-  if (G.bufferedPress > 0){ G.bufferedPress = 0; pressStart(); }
   if (f.idx > G.flowersPassed){
     G.flowersPassed = f.idx;
     G.score += 1;
     if (Math.abs(P.x - f.x) <= Math.max(2.5, f.w * CFG.PERFECT_FRAC)){
       G.streak++;
-      const bonus = 4 * Math.min(G.streak, 6);
+      const bonus = 5 * Math.min(G.streak, 5);
       G.score += bonus;
       addText(f.x, f.y - 18, (G.streak > 1 ? 'PERFECTO x' + G.streak : 'PERFECTO') + ' +' + bonus, '#fff27a');
-      if (G.streak >= 3) burst(f.x, f.y - 4, 3 + Math.min(5,G.streak), ['#ffffff','#fff27a','#ffd23f'], 35, 80, 0.35, 1);
       Sfx.perfect(G.streak);
     } else {
       G.streak = 0;
@@ -690,11 +703,8 @@ function die(type){
 function stepPlayer(h){
   const py = P.y;
   P.x += P.vx*h;
-  const prof = jumpVel(P.jumpPower == null ? 0.5 : P.jumpPower);
-  const g = P.vy < 0 ? prof.gAsc : prof.gFall;
-  const vy0 = P.vy;
-  P.vy = Math.min(CFG.FALL_MAX, P.vy + g*h);
-  P.y += (vy0 + P.vy) * 0.5 * h;
+  const r = integrateVertical(P.y, P.vy, h);
+  P.y = r[0]; P.vy = r[1];
   if (P.dead) return;
 
   if (P.vy > 0){
@@ -727,7 +737,7 @@ function updateEnemies(dt){
     G.enemyTimer -= dt;
     if (G.enemyTimer <= 0 && G.enemies.length < (de > 0.45 ? 2 : 1)){
       spawnEnemy(de);
-      G.enemyTimer = lerp(7.0, 3.0, de) * rand(0.80, 1.20);
+      G.enemyTimer = lerp(6.5, 2.6, de) * rand(0.75, 1.25);
     }
   }
   for (const e of G.enemies){
@@ -752,7 +762,6 @@ function addText(x, y, text, c, screen=false, kind='local'){
 
 function update(dt){
   G.time += dt;
-  if (G.bufferedPress > 0) G.bufferedPress = Math.max(0, G.bufferedPress - dt);
 
   for (const f of G.flowers){
     if (f.dipT > 0){
@@ -768,9 +777,7 @@ function update(dt){
 
   if (P.charging){
     P.chargeT += dt*1000;
-    const raw = clamp(P.chargeT / CFG.CHARGE_MS, 0, 1);
-    // Curva perceptiva: más control en pulsaciones cortas/medias sin perder potencia máxima.
-    P.power = 1 - Math.pow(1 - raw, 1.12);
+    P.power = clamp(P.chargeT / CFG.CHARGE_MS, 0, 1);
     Sfx.chargeUpdate(P.power);
   }
 
@@ -778,7 +785,7 @@ function update(dt){
     P.airT += dt;
     const steps = Math.ceil(dt / (1/240)), h = dt / steps;
     for (let i=0; i<steps && !P.grounded; i++) stepPlayer(h);
-    if (!P.dead) P.rot = clamp(P.vy/700, -0.45, 0.6) * 0.8;
+    if (!P.dead) P.rot = clamp(P.vy/450, -0.45, 0.6) * 0.8;
     else if (P.deathType === 'hit') P.rot += dt*14;
   }
 
@@ -1090,6 +1097,20 @@ UI.mute.classList.toggle('off', Sfx.isMuted());
 UI.mute.addEventListener('click', e => { toggleMute(); e.currentTarget.blur(); });
 $('play').addEventListener('click', e => { e.currentTarget.blur(); startGame(); });
 $('again').addEventListener('click', e => { e.currentTarget.blur(); startGame(); });
+
+const physBtns = [$('physA'), $('physB')];
+function physLabel(){
+  const es = (document.documentElement.lang || 'es') === 'es';
+  return (es ? 'Física: ' : 'Physics: ') + (physMode === 'mario' ? 'Mario' : (es ? 'clásica' : 'classic'));
+}
+function refreshPhys(){ physBtns.forEach(b => { b.textContent = physLabel(); }); }
+physBtns.forEach(b => b.addEventListener('click', e => {
+  e.currentTarget.blur();
+  applyPhysics(physMode === 'mario' ? 'classic' : 'mario');
+  refreshPhys();
+  if (G.state !== 'play') resetWorld();
+}));
+refreshPhys();
 
 window.addEventListener('resize', resize);
 resize();
